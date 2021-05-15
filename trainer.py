@@ -30,9 +30,16 @@ db = firebase.database()
 
 root = tk.Tk()
 
-global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, inBetweenTargets, onTarget, timeOn, totalTime, percentageOn
+global currentMouseX, currentMouseY, currentTargetX, currentTargetY, lastTargetX, lastTargetY, taskRunning, difference, inBetweenTargets, onTarget, timeOn, totalTime, percentageOn
+global lastMouseX, lastMouseY
+global lastHitTime, startTime
+startTime = time.time()
 onTarget = False
 inBetweenTargets = False
+
+sessionVelocitiesX = []
+sessionVelocitiesY = []
+sessionVelocities = {}
 
 currentMouseX = root.winfo_pointerx()
 currentMouseY = root.winfo_pointery()
@@ -88,6 +95,21 @@ def velocityAnalyzer():
             time.sleep(0.020)
             continue
  
+def velocityAnalyzer2():
+    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, lastMouseX, lastMouseY, lastHitTime, startTime
+    lastSuccessfulPos = (lastMouseX, lastMouseY)
+    currentPos = (currentMouseX, currentMouseY)
+    distance = findDistance(lastSuccessfulPos, currentPos)
+    timeDelta = time.time() - lastHitTime
+    totalTimeDelta = time.time() - startTime
+    velocity = distance / timeDelta
+    sessionVelocitiesX.append(totalTimeDelta)
+    sessionVelocitiesY.append(velocity)
+    sessionVelocities[totalTimeDelta] = velocity
+    print("Distance: {}, Time: {}, Velocity: {}".format(str(distance), str(timeDelta), str(velocity)))
+
+
+
 def findDistance(point1, point2):
     return math.sqrt((point2[1]-point1[1])**2 + (point2[0]-point1[0])**2)
 
@@ -138,7 +160,7 @@ def move():
     # self.master.update()
 
 def spawnTargets():
-    global currentTargetX, currentTargetY, taskRunning
+    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY
     taskRunning = True
     taskCanvas = tk.Canvas(root, width=1600, height = 1600, bg="red")
     taskCanvas.place(relx = 0, rely = 0, anchor = 'nw')
@@ -149,6 +171,8 @@ def spawnTargets():
     y = random.randint(0, 800)
     print("x: " + str(x))
     print("y: ", str(y))
+    lastTargetX = currentMouseX
+    lastTargetY = currentMouseY
     currentTargetX, currentTargetY = x, y
     image = taskCanvas.create_image(x,y, anchor='c', image=filename)
     root.update()
@@ -156,10 +180,12 @@ def spawnTargets():
     # root.after(2000, spawnTargets)
 
 def clicked(event):
-    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning
+    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, lastMouseX, lastMouseY, lastHitTime, startTime
     if taskRunning:
         if currentTargetX-40 < currentMouseX < currentTargetX + 40 and currentTargetY-40 < currentMouseY < currentTargetY+40:
             spawnTargets()
+            lastMouseX, lastMouseY = root.winfo_pointerx() - root.winfo_rootx(), root.winfo_pointery() - root.winfo_rooty()
+            lastHitTime = time.time() - startTime
         else:
             pass
 
@@ -189,9 +215,11 @@ def angleHoldTask():
 
 
 if __name__ == "__main__":  
-    
+    def click(event):
+        clicked(event)
+        velocityAnalyzer()
     root.bind('<Motion>', motion)
-    root.bind("<Button-1>", clicked)
+    root.bind("<Button-1>", click)
     _thread.start_new_thread(velocityAnalyzer, ())
     spawnTargets()
     # root.after(2000, spawnTargets)
