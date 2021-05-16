@@ -201,7 +201,7 @@ def close(event):
     main()
  
 def velocityAnalyzer2():
-    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, lastMouseX, lastMouseY, lastHitTime, startTime, sessionTimesAngle, sessionVelocitiesY, sessionVelocitiesX, sessionVelocities
+    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, lastMouseX, lastMouseY, lastHitTime, startTime, sessionTimesAngle
     print(currentMouseX, currentMouseY)
     print(lastMouseX, lastMouseY)
     print("Distance: {}".format(str(findDistance((currentMouseX, currentMouseY), (lastMouseX, lastMouseY)))))
@@ -218,6 +218,7 @@ def velocityAnalyzer2():
             sessionVelocitiesX.append(lastX + 1)
         except:
             sessionVelocitiesX.append(0)
+        print("Velocity: ", velocity)
         sessionVelocitiesY.append(velocity)
         sessionVelocities[totalTimeDelta] = velocity
         print("Distance: {}, Time: {}, Velocity: {}".format(str(distance), str(timeDelta), str(velocity)))
@@ -262,10 +263,6 @@ def spawnMacroTargets(taskCanvas):
     taskCanvas.place(relx = 0, rely = 0, anchor = 'nw')
     taskCanvas.create_text(23, 14, text=str(0), justify = CENTER) """
     
-    try:
-        velocityAnalyzer2()
-    except:
-        pass
 
     filename = tk.PhotoImage(file = "ball.png")
     root.filename = filename
@@ -293,6 +290,7 @@ def spawnMacroTargets(taskCanvas):
     except:
         pass
     ballID = taskCanvas.create_image(x,y, anchor='c', image=filename)
+    velocityAnalyzer2()
     root.update()
     taskCanvas.update_idletasks()
     # root.after(2000, spawnTargets)
@@ -304,12 +302,8 @@ def spawnTargets(taskCanvas):
     """ taskCanvas = tk.Canvas(root, width=800, height = 800, bg="red")
     taskCanvas.place(relx = 0, rely = 0, anchor = 'nw')
     taskCanvas.create_text(23, 14, text=str(0), justify = CENTER) """
-    
-    try:
-        velocityAnalyzer2()
-    except:
-        pass
 
+    velocityAnalyzer2()
     filename = tk.PhotoImage(file = "ball.png")
     root.filename = filename
     x = random.randint(300, 500)
@@ -324,6 +318,7 @@ def spawnTargets(taskCanvas):
     except:
         pass
     ballID = taskCanvas.create_image(x,y, anchor='c', image=filename)
+    
     root.update()
     taskCanvas.update_idletasks()
     # root.after(2000, spawnTargets)
@@ -354,21 +349,21 @@ def clicked(event):
             if currentTargetX-40 < currentMouseX < currentTargetX + 40 and currentTargetY-40 < currentMouseY < currentTargetY+40:
                 spawnTargets(canvas)
                 goodClicks += 1
+                lastHitTime = time.time()
         elif macroRunning:
             if currentTargetX-40 < currentMouseX < currentTargetX + 40 and currentTargetY-40 < currentMouseY < currentTargetY+40:
                 spawnMacroTargets(canvas)
                 goodClicks += 1
+                lastHitTime = time.time()
         elif angleRunning:
             print("angleRunning is true")
             if currentTargetX-40 < currentMouseX < currentTargetX + 40 and currentTargetY-40 < currentMouseY < currentTargetY+40:
                 print("ball clicked")
                 spawnAngleTargets(canvas)
                 goodClicks += 1
-
-            # lastMouseX, lastMouseY = root.winfo_pointerx() - root.winfo_rootx(), root.winfo_pointery() - root.winfo_rooty()
-            lastHitTime = time.time()
-        else:
-            pass
+                lastHitTime = time.time()
+    else:
+        pass
 
 def mainMenu():
     pass
@@ -379,7 +374,7 @@ def updateTimer(canvas, initialTime, upper_text):
     root.after(5, lambda: updateTimer(canvas, initialTime, upper_text))
 
 def openMicroTask():
-    global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, microRunning, macroRunning, angleRunning
+    global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, microRunning, macroRunning, angleRunning, lastHitTime
     goodClicks = 0
     numClicks = 0
     microRunning = True
@@ -392,6 +387,7 @@ def openMicroTask():
     canvas.place(relx = 0, rely = 0, anchor = 'nw')
     upper_text = canvas.create_text(23, 14, text=str(0), justify = LEFT)
     initialTime = time.time()
+    lastHitTime = time.time()
     spawnTargets(canvas)
     updateTimer(canvas, initialTime, upper_text)
     root.bind("<Return>", displayResults)
@@ -401,7 +397,7 @@ def calcAccuracy(shotsHit, shotsTaken):
     return round(shotsHit/shotsTaken, 2)
 
 def displayResults(event):
-    global sessionVelocities, sessionVelocitiesX, sessionVelocitiesY, goodClicks, numClicks, microScore, microAccuracy, macroScore, macroAccuracy, microRunning, macroRunning
+    global sessionVelocities, sessionVelocitiesX, sessionVelocitiesY, goodClicks, numClicks, microScore, microAccuracy, macroScore, macroAccuracy, microRunning, macroRunning, angleRunning, taskRunning
     scoreLevel = tk.Toplevel(root)
     scoreLevel.geometry("600x600")
     scoreLevel.resizable(0,0)
@@ -461,7 +457,7 @@ def displayResults(event):
     angleRunning = False
 
 def openSpiderShot():
-    global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, macroRunning, microRunning, angleRunning
+    global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, macroRunning, microRunning, angleRunning, lastHitTime
     goodClicks = 0
     numClicks = 0
     macroRunning = True
@@ -474,6 +470,7 @@ def openSpiderShot():
     canvas.place(relx = 0, rely = 0, anchor = 'nw')
     upper_text = canvas.create_text(23, 14, text=str(0), justify = LEFT)
     initialTime = time.time()
+    lastHitTime = time.time()
     spawnMacroTargets(canvas)
     updateTimer(canvas, initialTime, upper_text)
     root.bind("<Return>", displayResults)
@@ -588,7 +585,7 @@ def displayResultsAngle(event):
 
     angleAccuracy = round((goodClicks / numClicks), 2)
     
-    acc_label = tk.Label(scoreLevel, text = "Accuracy: " + str(accuracy))
+    acc_label = tk.Label(scoreLevel, text = "Accuracy: " + str(angleAccuracy))
     acc_label.place(relx = 0.33, rely = 0.8, anchor = CENTER)
 
     score = 0
