@@ -29,6 +29,7 @@ firebase = pyrebase.initialize_app(config)
 db = firebase.database()
 
 root = tk.Tk()
+root.geometry("800x800")
 
 global currentMouseX, currentMouseY, currentTargetX, currentTargetY, lastTargetX, lastTargetY, taskRunning, difference, inBetweenTargets, onTarget, timeOn, totalTime, percentageOn
 global lastMouseX, lastMouseY
@@ -41,10 +42,10 @@ sessionVelocitiesX = []
 sessionVelocitiesY = []
 sessionVelocities = {}
 
-currentMouseX = root.winfo_pointerx()
-currentMouseY = root.winfo_pointery()
-abs_coord_x = root.winfo_pointerx() - root.winfo_rootx()
-abs_coord_y = root.winfo_pointery() - root.winfo_rooty()
+currentMouseX = root.winfo_pointerx() - root.winfo_rootx()
+currentMouseY = root.winfo_pointery() - root.winfo_rooty()
+lastMouseX = currentMouseX
+lastMouseY = currentMouseY
 
 global score, accuracy
 
@@ -61,7 +62,7 @@ def motion(event):
     currentMouseY = event.y
     # print('{}, {}'.format(currentMouseX, currentMouseY))
 
-# go into a different thread since it'll be running in the background of tk
+""" # go into a different thread since it'll be running in the background of tk
 def velocityAnalyzer():
     global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference
 
@@ -93,20 +94,29 @@ def velocityAnalyzer():
             time.sleep(0.020)
         else:
             time.sleep(0.020)
-            continue
+            continue """
  
 def velocityAnalyzer2():
     global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, lastMouseX, lastMouseY, lastHitTime, startTime
-    lastSuccessfulPos = (lastMouseX, lastMouseY)
-    currentPos = (currentMouseX, currentMouseY)
-    distance = findDistance(lastSuccessfulPos, currentPos)
-    timeDelta = time.time() - lastHitTime
-    totalTimeDelta = time.time() - startTime
-    velocity = distance / timeDelta
-    sessionVelocitiesX.append(totalTimeDelta)
-    sessionVelocitiesY.append(velocity)
-    sessionVelocities[totalTimeDelta] = velocity
-    print("Distance: {}, Time: {}, Velocity: {}".format(str(distance), str(timeDelta), str(velocity)))
+    print(currentMouseX, currentMouseY)
+    print(lastMouseX, lastMouseY)
+    print("Distance: {}".format(str(findDistance((currentMouseX, currentMouseY), (lastMouseX, lastMouseY)))))
+    if findDistance((currentMouseX, currentMouseY), (currentTargetX, currentTargetY)) < 40:
+        lastSuccessfulPos = (lastMouseX, lastMouseY)
+        currentPos = (currentMouseX, currentMouseY)
+        distance = findDistance(lastSuccessfulPos, currentPos)
+        timeDelta = time.time() - lastHitTime
+        totalTimeDelta = time.time() - startTime
+        velocity = distance / (timeDelta)
+        try:
+            lastX = sessionVelocitiesX[len(sessionVelocitiesX)-1]
+            sessionVelocitiesX.append(lastX + 1)
+        except:
+            sessionVelocitiesX.append(0)
+        sessionVelocitiesY.append(velocity)
+        sessionVelocities[totalTimeDelta] = velocity
+        print("Distance: {}, Time: {}, Velocity: {}".format(str(distance), str(timeDelta), str(velocity)))
+        lastHitTime = time.time()
 
 
 
@@ -160,10 +170,15 @@ def move():
     # self.master.update()
 
 def spawnTargets():
-    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY
+    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY, lastMouseX, lastMouseY
     taskRunning = True
-    taskCanvas = tk.Canvas(root, width=1600, height = 1600, bg="red")
+    taskCanvas = tk.Canvas(root, width=800, height = 800, bg="red")
     taskCanvas.place(relx = 0, rely = 0, anchor = 'nw')
+
+    try:
+        velocityAnalyzer2()
+    except:
+        pass
 
     filename = tk.PhotoImage(file = "ball.png")
     root.filename = filename
@@ -171,8 +186,8 @@ def spawnTargets():
     y = random.randint(0, 800)
     print("x: " + str(x))
     print("y: ", str(y))
-    lastTargetX = currentMouseX
-    lastTargetY = currentMouseY
+    lastMouseX = currentMouseX
+    lastMouseY = currentMouseY
     currentTargetX, currentTargetY = x, y
     image = taskCanvas.create_image(x,y, anchor='c', image=filename)
     root.update()
@@ -184,8 +199,8 @@ def clicked(event):
     if taskRunning:
         if currentTargetX-40 < currentMouseX < currentTargetX + 40 and currentTargetY-40 < currentMouseY < currentTargetY+40:
             spawnTargets()
-            lastMouseX, lastMouseY = root.winfo_pointerx() - root.winfo_rootx(), root.winfo_pointery() - root.winfo_rooty()
-            lastHitTime = time.time() - startTime
+            # lastMouseX, lastMouseY = root.winfo_pointerx() - root.winfo_rootx(), root.winfo_pointery() - root.winfo_rooty()
+            lastHitTime = time.time()
         else:
             pass
 
@@ -217,10 +232,23 @@ def angleHoldTask():
 if __name__ == "__main__":  
     def click(event):
         clicked(event)
-        velocityAnalyzer()
     root.bind('<Motion>', motion)
     root.bind("<Button-1>", click)
-    _thread.start_new_thread(velocityAnalyzer, ())
+    # _thread.start_new_thread(velocityAnalyzer, ())
     spawnTargets()
     # root.after(2000, spawnTargets)
     root.mainloop()
+    fig = plt.figure()
+    # Adding a subplot
+    ax = fig.add_subplot(1,1,1)
+    # Title
+    ax.set_title("Cursor Velocity (px/s) vs Trial")
+    # Y axis label
+    ax.set_ylabel("Cursor Velocity")
+    # X axis label
+    ax.set_xlabel("Trial #")
+    # Set y bounds to 0-1100
+    ax.set_ylim([0, 2000])
+    ax.set_xticks(sessionVelocitiesX)
+    ax.plot(sessionVelocitiesX, sessionVelocitiesY, color = "red")
+    plt.show()
