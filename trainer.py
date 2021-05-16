@@ -1,4 +1,4 @@
-from collections import UserString
+
 import tkinter as tk
 from tkinter.constants import *
 import pyrebase
@@ -44,10 +44,6 @@ im1.save("ball.png", "png")
                 Macro
                     Score: score
                     Accuracy: accuracy
-                    KDA: KDA
-                    Feeling: feeling
-                Tracking
-                    Percentage: percentage
                     KDA: KDA
                     Feeling: feeling
                 Angle
@@ -119,6 +115,12 @@ if auth_email != "":
 global currentMouseX, currentMouseY, currentTargetX, currentTargetY, lastTargetX, lastTargetY, taskRunning, difference, inBetweenTargets, onTarget, timeOn, totalTime, percentageOn
 global lastMouseX, lastMouseY
 global lastHitTime, startTime
+global microAccuracy, macroAccuracy, angleAccuracy, macroScore, microScore, angleScore
+global microRunning, macroRunning, angleRunning
+microRunning = False
+macroRunning = False 
+angleRunning = False
+
 startTime = time.time()
 onTarget = False
 inBetweenTargets = False
@@ -160,7 +162,10 @@ def main():
     spiderShot.place(relx= 0.2, rely = 0.4)
 
     angleHold = tk.Button(root, text = "Angle Hold Task", height = 100, width= 600, command = lambda: openAngleTask())
-    angleHold.place(relx= 0.2, rely = 0.6) 
+    angleHold.place(relx= 0.2, rely = 0.5) 
+
+    postGame =  tk.Button(root, text = "Post-Game Analysis", height = 100, width= 600, command = lambda: openPostGame())
+    postGame.place(relx= 0.2, rely = 0.6) 
 
 
     root.mainloop()
@@ -185,18 +190,18 @@ def close(event):
         child.destroy()
     taskRunning = False
     # Sending to firebase
-    sum = 0
+    total = 0
     for velocity in sessionVelocitiesY:
-        sum += velocity
-    avg_velocity = sum / len(sessionVelocitiesY)
-    db.child("Users").child(auth_email).child("Velocity_Data").set(sessionVelocities)
+        total += velocity
+    avg_velocity = total / len(sessionVelocitiesY)
+    # db.child("Users").child(auth_email).child("Velocity_Data").set(sessionVelocities)
     sessionVelocities = {}
     sessionVelocitiesX = []
     sessionVelocitiesY = []
     main()
  
 def velocityAnalyzer2():
-    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, lastMouseX, lastMouseY, lastHitTime, startTime, sessionTimesAngle
+    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, lastMouseX, lastMouseY, lastHitTime, startTime, sessionTimesAngle, sessionVelocitiesY, sessionVelocitiesX, sessionVelocities
     print(currentMouseX, currentMouseY)
     print(lastMouseX, lastMouseY)
     print("Distance: {}".format(str(findDistance((currentMouseX, currentMouseY), (lastMouseX, lastMouseY)))))
@@ -396,7 +401,7 @@ def calcAccuracy(shotsHit, shotsTaken):
     return round(shotsHit/shotsTaken, 2)
 
 def displayResults(event):
-    global sessionVelocities, sessionVelocitiesX, sessionVelocitiesY, goodClicks, numClicks
+    global sessionVelocities, sessionVelocitiesX, sessionVelocitiesY, goodClicks, numClicks, microScore, microAccuracy, macroScore, macroAccuracy, microRunning, macroRunning
     scoreLevel = tk.Toplevel(root)
     scoreLevel.geometry("600x600")
     scoreLevel.resizable(0,0)
@@ -405,13 +410,23 @@ def displayResults(event):
     
     acc_label = tk.Label(scoreLevel, text = "Accuracy: " + str(accuracy))
     acc_label.place(relx = 0.33, rely = 0.8, anchor = CENTER)
+    if microRunning:
+        microAccuracy = accuracy
+    if macroRunning:
+        macroAccuracy = accuracy
+
 
     score = 0
-    sum = 0
+    total = 0
     for velocity in sessionVelocitiesY:
-        sum += velocity
+        total += velocity
         score += (velocity // 250) + 1  
-    avg_velocity = sum / len(sessionVelocitiesY)
+    if microRunning:
+        microScore = score
+    if macroRunning:
+        macroScore = score
+    print("Length of SessionVelocitiesY: ", len(sessionVelocitiesY))
+    avg_velocity = total / len(sessionVelocitiesY)
     
     score_label = tk.Label(scoreLevel, text = "Score: " + str(score))
     score_label.place(relx = 0.66, rely = 0.8, anchor = CENTER)
@@ -440,6 +455,10 @@ def displayResults(event):
     toolbar.update()
     # Plot the data
     line, = ax.plot(sessionVelocitiesX, sessionVelocitiesY, color = "red", label = "EMG Value (V)")
+    macroRunning = False
+    microRunning = False
+    taskRunning = False
+    angleRunning = False
 
 def openSpiderShot():
     global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, macroRunning, microRunning, angleRunning
@@ -561,25 +580,26 @@ def spawnAngleTargets(canvas):
 
 
 def displayResultsAngle(event):
-    global sessionTimesAngle, sessionVelocitiesX, goodClicks, numClicks
+    global sessionTimesAngle, sessionVelocitiesX, goodClicks, numClicks, angleScore, angleAccuracy
     print("displayingangleresults")
     scoreLevel = tk.Toplevel(root)
     scoreLevel.geometry("600x600")
     scoreLevel.resizable(0,0)
 
-    accuracy = round((goodClicks / numClicks), 2)
+    angleAccuracy = round((goodClicks / numClicks), 2)
     
     acc_label = tk.Label(scoreLevel, text = "Accuracy: " + str(accuracy))
     acc_label.place(relx = 0.33, rely = 0.8, anchor = CENTER)
 
     score = 0
-    sum = 0
+    total = 0
     for times in sessionTimesAngle:
-        sum += times
+        total += times
         score += (10-times)  
-    avg_time = sum / len(sessionTimesAngle)
+    angleScore = score
+    avg_time = total / len(sessionTimesAngle)
     
-    score_label = tk.Label(scoreLevel, text = "Score: " + str(round(score,2))
+    score_label = tk.Label(scoreLevel, text = "Score: " + str(round(score,2)))
     score_label.place(relx = 0.33, rely = 0.8, anchor = CENTER)
 
     score_label = tk.Label(scoreLevel, text = "Average Time Taken Per Ball: " + str(round(avg_time,2)))
@@ -606,7 +626,29 @@ def displayResultsAngle(event):
     toolbar.update()
     # Plot the data
     line, = ax.plot(sessionVelocitiesX, sessionTimesAngle, color = "red", label = "EMG Value (V)")
+    macroRunning = False
+    microRunning = False
+    taskRunning = False
+    angleRunning = False
 
+def openPostGame():
+    global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, microRunning, macroRunning, angleRunning 
+    microRunning = False
+    macroRunning = False
+    angleRunning = False
+    for child in canvas.winfo_children():
+        child.destroy()
+    taskRunning = False
+    canvas = tk.Canvas(root, width=800, height = 800, bg="red")
+    canvas.place(relx = 0, rely = 0, anchor = 'nw')
+    title_label = tk.Label(root, text = "Welcome to the Post-Game Analysis", font = ("Robus", 30))
+    title_label.place(relx = 0.5, rely = 0.1, anchor = CENTER)
+    KDA = canvas.create_text(23, 14, text="In the past game, what was your KD/A? (Add the number of kills to your assists, divide by your deaths, and round one decimal place)", justify = LEFT)
+    userKDA = tk.Entry(canvas)
+    felt = canvas.create_text(23, 14, text="On a scale of 0-100, how well would you say your aim was in your previous game? 0-worst, 100-best aim performance ever", justify = LEFT)
+    userfelt = tk.Entry(canvas)
+    root.bind("<Return>", displayResults)
+    root.after(60000, lambda: close(0))
 
 if __name__ == "__main__":  
     main()
