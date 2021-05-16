@@ -13,6 +13,8 @@ import math
 import random
 from PIL import Image
 import time
+import machineLearning
+import json
 
 def removePeriods(input):
     while input.__contains__("."):
@@ -63,12 +65,12 @@ firebaseref = pyrebase.initialize_app(config)
 db = firebaseref.database()
 global auth_email
 with open("config.json", "r+") as texthandle:
-    text = texthandle.read()
+    text = dict(json.loads(texthandle.read()))
     try:
-        auth_email = removePeriods(dict(text)["email"])
+        auth_email = removePeriods(text["email"])
     except:
         auth_email = ""
-
+print(auth_email)
 """ auth_client = firebase_admin.auth.Client()
 
 if auth_email != "" and auth_password != "":
@@ -86,7 +88,8 @@ root.geometry("800x800")
 
 def makeSignInToplevel():
     SignIn = tk.Toplevel(root)
-
+    SignIn.geometry("600x300")
+    SignIn.resizable(0,0)
     email = tk.StringVar()
     entry = tk.Entry(SignIn, textvariable = email)
     entry.place(relx = 0.5, rely = 0.5, anchor = CENTER)
@@ -100,23 +103,38 @@ def makeSignInToplevel():
         auth_email = email
         dictionary = {'email': email}
         with open("config.json", "w+") as texthandle:
-            texthandle.write(str(dictionary))
+            json.dump(dictionary, texthandle)
         texthandle.close()
         SignIn.destroy()
 
     submit = tk.Button(SignIn, text = "Submit", command = lambda: SubmitEmail(email.get()))
     submit.place(relx = 0.5, rely = 0.6, anchor = CENTER)
 
-if auth_email != "":
+if auth_email == "":
     makeSignInToplevel()
 
+def checkScores():
+    global microScore, macroScore, angleScore, auth_email
+    try:
+        if microScore != "" and macroScore != "" and angleScore != "":
+            print("From Trainer: ", microScore, macroScore, angleScore)
+            MLOutput = round(machineLearning.getMLOutput(auth_email, microScore, macroScore, angleScore), 1)
+            print("Creating toplevel")
+            newWindow = tk.Toplevel(root)
+            newWindow.geometry("200x200")
+            print("Creating text")
+            label = tk.Label(newWindow, text = "Your estimated KDA based on your score is: " + str(MLOutput))
+            label.place(relx = 0.5, rely = 0.5, anchor = CENTER)
+    except:
+        root.after(1000, checkScores)
 
-
+    
 global currentMouseX, currentMouseY, currentTargetX, currentTargetY, lastTargetX, lastTargetY, taskRunning, difference, inBetweenTargets, onTarget, timeOn, totalTime, percentageOn
 global lastMouseX, lastMouseY
 global lastHitTime, startTime
 global microAccuracy, macroAccuracy, angleAccuracy, macroScore, microScore, angleScore
 global microRunning, macroRunning, angleRunning
+global postanalysisFinished
 microRunning = False
 macroRunning = False 
 angleRunning = False
@@ -124,7 +142,8 @@ angleRunning = False
 startTime = time.time()
 onTarget = False
 inBetweenTargets = False
-global sessionVelocities, sessionVelocitiesX, sessionVelocitiesY, sessionTimesAngle
+global sessionVelocities, sessionVelocitiesX, sessionVelocitiesY, sessionTimesAngle, sessionsTimesX
+sessionsTimesX = []
 sessionTimesAngle = []
 sessionVelocitiesX = []
 sessionVelocitiesY = []
@@ -146,6 +165,8 @@ def main():
     canvas = tk.Canvas(root, bg = "blue", width = 800, height = 700)
     canvas.place(relx = 0.5, rely = 0.5, anchor = CENTER)
 
+    checkScores()
+
     def click(event):
         clicked(event)
     root.bind('<Motion>', motion)
@@ -155,17 +176,17 @@ def main():
     title_label = tk.Label(root, text = "AMAZING AIM ANALYZER", font = ("Robus", 30))
     title_label.place(relx = 0.5, rely = 0.1, anchor = CENTER)
 
-    microFlex = tk.Button(root, text = "MicroFlex Task", height = 100, width= 600, command = lambda: openMicroTask())
-    microFlex.place(relx= 0.2, rely = 0.3)
+    microFlex = tk.Button(root, text = "MicroFlex Task", command = lambda: openMicroTask())
+    microFlex.place(relx= 0.5, rely = 0.3, anchor = CENTER, relwidth = 0.5, relheight = 0.125)
     
-    spiderShot = tk.Button(root, text = "Spider Shot Task", height = 100, width= 600, command = lambda: openSpiderShot())
-    spiderShot.place(relx= 0.2, rely = 0.4)
+    spiderShot = tk.Button(root, text = "Spider Shot Task", command = lambda: openSpiderShot())
+    spiderShot.place(relx= 0.5, rely = 0.4, anchor = CENTER, relwidth = 0.5, relheight = 0.125)
 
-    angleHold = tk.Button(root, text = "Angle Hold Task", height = 100, width= 600, command = lambda: openAngleTask())
-    angleHold.place(relx= 0.2, rely = 0.5) 
+    angleHold = tk.Button(root, text = "Angle Hold Task", command = lambda: openAngleTask())
+    angleHold.place(relx= 0.5, rely = 0.5, anchor = CENTER, relwidth = 0.5, relheight = 0.125)
 
-    postGame =  tk.Button(root, text = "Post-Game Analysis", height = 100, width= 600, command = lambda: openPostGame())
-    postGame.place(relx= 0.2, rely = 0.6) 
+    postGame =  tk.Button(root, text = "Post-Game Analysis", command = lambda: openPostGame())
+    postGame.place(relx= 0.5, rely = 0.6, anchor = CENTER, relwidth = 0.5, relheight = 0.125)
 
 
     root.mainloop()
@@ -189,11 +210,11 @@ def close(event):
     for child in root.winfo_children():
         child.destroy()
     taskRunning = False
-    # Sending to firebase
-    total = 0
-    for velocity in sessionVelocitiesY:
-        total += velocity
-    avg_velocity = total / len(sessionVelocitiesY)
+    if len(sessionVelocitiesY) != 0:
+        total = 0
+        for velocity in sessionVelocitiesY:
+            total += velocity
+        avg_velocity = total / len(sessionVelocitiesY)
     # db.child("Users").child(auth_email).child("Velocity_Data").set(sessionVelocities)
     sessionVelocities = {}
     sessionVelocitiesX = []
@@ -201,16 +222,17 @@ def close(event):
     main()
  
 def velocityAnalyzer2():
-    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, lastMouseX, lastMouseY, lastHitTime, startTime, sessionTimesAngle
+    global currentMouseX, currentMouseY, currentTargetX, currentTargetY, taskRunning, difference, lastMouseX, lastMouseY, lastHitTime, startTime, sessionTimesAngle, angleRunning, sessionsTimesX
     print(currentMouseX, currentMouseY)
     print(lastMouseX, lastMouseY)
-    print("Distance: {}".format(str(findDistance((currentMouseX, currentMouseY), (lastMouseX, lastMouseY)))))
-    if findDistance((currentMouseX, currentMouseY), (currentTargetX, currentTargetY)) < 40:
+    print("Mouse to Mouse Distance: {}".format(str(findDistance((currentMouseX, currentMouseY), (lastMouseX, lastMouseY)))))
+    print("Mouse to Target Distance: ", findDistance((currentMouseX, currentMouseY), (currentTargetX, currentTargetY)))
+    print("angleRunning?" +str(angleRunning))
+    if findDistance((currentMouseX, currentMouseY), (currentTargetX, currentTargetY)) < 40 and not angleRunning:
         lastSuccessfulPos = (lastMouseX, lastMouseY)
         currentPos = (currentMouseX, currentMouseY)
         distance = findDistance(lastSuccessfulPos, currentPos)
         timeDelta = time.time() - lastHitTime
-        sessionTimesAngle.append(timeDelta)
         totalTimeDelta = time.time() - startTime
         velocity = distance / (timeDelta)
         try:
@@ -222,6 +244,18 @@ def velocityAnalyzer2():
         sessionVelocitiesY.append(velocity)
         sessionVelocities[totalTimeDelta] = velocity
         print("Distance: {}, Time: {}, Velocity: {}".format(str(distance), str(timeDelta), str(velocity)))
+        lastHitTime = time.time()
+    elif angleRunning and findDistance((currentMouseX, currentMouseY), (currentTargetX, currentTargetY)) < 40:
+        print("Running angle running specific condition")
+        timeDelta = time.time() - lastHitTime
+        print()
+        sessionTimesAngle.append(timeDelta)
+        try:
+            lastX = sessionsTimesX[len(sessionsTimesX)-1]
+            sessionsTimesX.append(lastX + 1)
+        except:
+            sessionsTimesX.append(0)
+        print("sessiontimeangle: " + str(sessionTimesAngle))
         lastHitTime = time.time()
 
 
@@ -257,7 +291,7 @@ def move():
 
 def spawnMacroTargets(taskCanvas):
     print("SPAWNING MACRO NOW")
-    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY, lastMouseX, lastMouseY, ballID
+    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY, lastMouseX, lastMouseY, ballID, lastHitTime, macroRunning
     taskRunning = True
     """ taskCanvas = tk.Canvas(root, width=800, height = 800, bg="red")
     taskCanvas.place(relx = 0, rely = 0, anchor = 'nw')
@@ -282,37 +316,55 @@ def spawnMacroTargets(taskCanvas):
         print("error")
     print("x: " + str(x))
     print("y: ", str(y))
+    if not macroRunning:
+        lastHitTime = time.time()
+    try:
+        velocityAnalyzer2()
+    except:
+        pass
+    macroRunning = True
+    currentTargetX, currentTargetY = x, y
+    
     lastMouseX = currentMouseX
     lastMouseY = currentMouseY
-    currentTargetX, currentTargetY = x, y
+    
     try:
         taskCanvas.delete(ballID)
     except:
         pass
     ballID = taskCanvas.create_image(x,y, anchor='c', image=filename)
-    velocityAnalyzer2()
+    
     root.update()
     taskCanvas.update_idletasks()
     # root.after(2000, spawnTargets)
 
 
 def spawnTargets(taskCanvas):
-    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY, lastMouseX, lastMouseY, ballID
+    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY, lastMouseX, lastMouseY, ballID, lastHitTime, microRunning
     taskRunning = True
     """ taskCanvas = tk.Canvas(root, width=800, height = 800, bg="red")
     taskCanvas.place(relx = 0, rely = 0, anchor = 'nw')
     taskCanvas.create_text(23, 14, text=str(0), justify = CENTER) """
 
-    velocityAnalyzer2()
+    
     filename = tk.PhotoImage(file = "ball.png")
     root.filename = filename
     x = random.randint(300, 500)
     y = random.randint(300, 500)
     print("x: " + str(x))
     print("y: ", str(y))
+    if not microRunning:
+        lastHitTime = time.time()
+    try:
+        velocityAnalyzer2()
+    except:
+        pass
+    microRunning = True
+    currentTargetX, currentTargetY = x, y
+    
     lastMouseX = currentMouseX
     lastMouseY = currentMouseY
-    currentTargetX, currentTargetY = x, y
+    
     try:
         taskCanvas.delete(ballID)
     except:
@@ -349,19 +401,24 @@ def clicked(event):
             if currentTargetX-40 < currentMouseX < currentTargetX + 40 and currentTargetY-40 < currentMouseY < currentTargetY+40:
                 spawnTargets(canvas)
                 goodClicks += 1
-                lastHitTime = time.time()
+                # lastHitTime = time.time()
+                
         elif macroRunning:
             if currentTargetX-40 < currentMouseX < currentTargetX + 40 and currentTargetY-40 < currentMouseY < currentTargetY+40:
+                
                 spawnMacroTargets(canvas)
                 goodClicks += 1
-                lastHitTime = time.time()
+                # lastHitTime = time.time()
+                
         elif angleRunning:
             print("angleRunning is true")
             if currentTargetX-40 < currentMouseX < currentTargetX + 40 and currentTargetY-40 < currentMouseY < currentTargetY+40:
                 print("ball clicked")
+                
                 spawnAngleTargets(canvas)
                 goodClicks += 1
-                lastHitTime = time.time()
+                # lastHitTime = time.time()
+                
     else:
         pass
 
@@ -370,14 +427,17 @@ def mainMenu():
 
 def updateTimer(canvas, initialTime, upper_text):
     canvas.delete(upper_text)
-    upper_text = canvas.create_text(23, 14, text=str(round((time.time() - initialTime), 2)), justify = LEFT)
-    root.after(5, lambda: updateTimer(canvas, initialTime, upper_text))
+    if round((time.time() - initialTime), 2) > 60:
+        displayResults(0)
+    else:
+        upper_text = canvas.create_text(23, 14, text=str(round((time.time() - initialTime), 2)), justify = LEFT)
+        root.after(5, lambda: updateTimer(canvas, initialTime, upper_text))
 
 def openMicroTask():
     global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, microRunning, macroRunning, angleRunning, lastHitTime
     goodClicks = 0
     numClicks = 0
-    microRunning = True
+    # microRunning = True
     macroRunning = False
     angleRunning = False
     for child in canvas.winfo_children():
@@ -387,20 +447,25 @@ def openMicroTask():
     canvas.place(relx = 0, rely = 0, anchor = 'nw')
     upper_text = canvas.create_text(23, 14, text=str(0), justify = LEFT)
     initialTime = time.time()
-    lastHitTime = time.time()
     spawnTargets(canvas)
     updateTimer(canvas, initialTime, upper_text)
     root.bind("<Return>", displayResults)
-    root.after(60000, lambda: close(0))
+    # root.after(60000, lambda: displayResults(0))
     
 def calcAccuracy(shotsHit, shotsTaken): 
     return round(shotsHit/shotsTaken, 2)
 
 def displayResults(event):
-    global sessionVelocities, sessionVelocitiesX, sessionVelocitiesY, goodClicks, numClicks, microScore, microAccuracy, macroScore, macroAccuracy, microRunning, macroRunning, angleRunning, taskRunning
+    global sessionVelocities, sessionVelocitiesX, sessionVelocitiesY, goodClicks, numClicks, microScore, microAccuracy, macroScore, macroAccuracy, microRunning, macroRunning, angleRunning, taskRunning, canvas
     scoreLevel = tk.Toplevel(root)
     scoreLevel.geometry("600x600")
     scoreLevel.resizable(0,0)
+    for child in canvas.winfo_children():
+        child.destroy()
+    def closeResults():
+        close(0)
+
+    scoreLevel.wm_protocol("WM_DELETE_WINDOW", closeResults)
 
     accuracy = round((goodClicks / numClicks), 2)
     
@@ -460,7 +525,7 @@ def openSpiderShot():
     global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, macroRunning, microRunning, angleRunning, lastHitTime
     goodClicks = 0
     numClicks = 0
-    macroRunning = True
+    # macroRunning = True
     microRunning = False
     angleRunning = False
     for child in canvas.winfo_children():
@@ -474,7 +539,7 @@ def openSpiderShot():
     spawnMacroTargets(canvas)
     updateTimer(canvas, initialTime, upper_text)
     root.bind("<Return>", displayResults)
-    root.after(60000, lambda: close(0))
+    # root.after(60000, lambda: displayResults(0))
  
 
 def openAngleTask():
@@ -483,7 +548,7 @@ def openAngleTask():
     numClicks = 0
     macroRunning = False
     microRunning = False
-    angleRunning = True
+    # angleRunning = True
     for child in canvas.winfo_children():
         child.destroy()
     taskRunning = True
@@ -501,25 +566,25 @@ def openAngleTask():
     initialTime = time.time()
     updateTimer(canvas, initialTime, upper_text)
     root.bind("<Return>", displayResultsAngle)
-    root.after(60000, lambda: close(0))
+    # root.after(60000, lambda: displayResultsAngle(0))
     spawnAngleTargets(canvas)
     
 
 
 def spawnAngleTargets(canvas):
     print("SPAWNING Angle NOW")
-    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY, lastMouseX, lastMouseY, ballID
+    global currentTargetX, currentTargetY, taskRunning, lastTargetX, lastTargetY, lastMouseX, lastMouseY, ballID, lastHitTime, angleRunning
     taskRunning = True
     """ taskCanvas = tk.Canvas(root, width=800, height = 800, bg="red")
     taskCanvas.place(relx = 0, rely = 0, anchor = 'nw')
     taskCanvas.create_text(23, 14, text=str(0), justify = CENTER) """
-    
+    if not angleRunning:
+        lastHitTime = time.time()
     try:
         velocityAnalyzer2()
     except:
         pass
-
-
+    angleRunning = True
     filename = tk.PhotoImage(file = "ball.png")
     root.filename = filename
 
@@ -537,6 +602,8 @@ def spawnAngleTargets(canvas):
 
     lastMouseX = currentMouseX
     lastMouseY = currentMouseY
+
+    
     currentTargetX, currentTargetY = x, y
     try:
         canvas.delete(ballID)
@@ -577,19 +644,28 @@ def spawnAngleTargets(canvas):
 
 
 def displayResultsAngle(event):
-    global sessionTimesAngle, sessionVelocitiesX, goodClicks, numClicks, angleScore, angleAccuracy
+    global sessionTimesAngle, sessionVelocitiesX, goodClicks, numClicks, angleScore, angleAccuracy, sessionsTimesX, canvas, macroRunning, microRunning, taskRunning, angleRunning
     print("displayingangleresults")
     scoreLevel = tk.Toplevel(root)
     scoreLevel.geometry("600x600")
     scoreLevel.resizable(0,0)
+    for child in canvas.winfo_children():
+        child.destroy()
+    def closeResults():
+        close(0)
+
+    scoreLevel.wm_protocol("WM_DELETE_WINDOW", closeResults)
 
     angleAccuracy = round((goodClicks / numClicks), 2)
     
+
+    #not working
     acc_label = tk.Label(scoreLevel, text = "Accuracy: " + str(angleAccuracy))
-    acc_label.place(relx = 0.33, rely = 0.8, anchor = CENTER)
+    acc_label.place(relx = 0, rely = 0.8, anchor = CENTER)
 
     score = 0
     total = 0
+    print("sessiontimes:"+ str(sessionTimesAngle))
     for times in sessionTimesAngle:
         total += times
         score += (10-times)  
@@ -622,14 +698,14 @@ def displayResultsAngle(event):
     toolbar = NavigationToolbar2Tk(canvas, scoreLevel)
     toolbar.update()
     # Plot the data
-    line, = ax.plot(sessionVelocitiesX, sessionTimesAngle, color = "red", label = "EMG Value (V)")
+    line, = ax.plot(sessionsTimesX, sessionTimesAngle, color = "red", label = "EMG Value (V)")
     macroRunning = False
     microRunning = False
     taskRunning = False
     angleRunning = False
 
 def openPostGame():
-    global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, microRunning, macroRunning, angleRunning 
+    global taskRunning, currentTargetX, currentTargetY, canvas, goodClicks, numClicks, microRunning, macroRunning, angleRunning, email, microScore, microAccuracy, macroScore, macroAccuracy, angleAccuracy, angleScore, auth_email 
     microRunning = False
     macroRunning = False
     angleRunning = False
@@ -640,28 +716,28 @@ def openPostGame():
     canvas.place(relx = 0, rely = 0, anchor = 'nw')
     title_label = tk.Label(root, text = "Welcome to the Post-Game Analysis", font = ("Robus", 30))
     title_label.place(relx = 0.5, rely = 0.1, anchor = CENTER)
-    KDA = canvas.create_text(23, 14, text="In the past game, what was your KD/A? (Add the number of kills to your assists, divide by your deaths, and round one decimal place)", justify = LEFT)
-    userKDA = tk.Entry(canvas)
-    felt = canvas.create_text(23, 14, text="On a scale of 0-100, how well would you say your aim was in your previous game? 0-worst, 100-best aim performance ever", justify = LEFT)
-    userfelt = tk.Entry(canvas)
+    KDA = canvas.create_text(275, 175, text="In the past game, what was your KD/A?\n (Add the number of kills to your assists, divide by your deaths, and round one decimal place)", justify = LEFT)
+    userKDAVal = tk.DoubleVar()
+    userKDA = tk.Entry(root, textvariable = userKDAVal)
+    userKDA.place(relx = 0.7, rely = 0.2)
+    felt = canvas.create_text(250, 475, text="On a scale of 0-100, how well would you say your aim was in your previous game? \n0-worst, 100-best aim performance ever", justify = LEFT)
+    userFeltVal = tk.IntVar()
+    userFelt = tk.Entry(root, textvariable = userFeltVal)
+    userFelt.place(relx = 0.7, rely = 0.6)
+
+    def sendToDB():
+        global auth_email, microScore, macroScore, angleScore
+        if auth_email == "":
+            makeSignInToplevel()
+        else:
+            machineLearning.sendToDB(auth_email, microScore, macroScore, angleScore, userKDAVal.get(), userFeltVal.get())
+            close(0)
+            root.quit()
+
+    sendFB = tk.Button(root, text = "Send Scores/Accuracies and Post-Game Data to Firebase", command = lambda: sendToDB())
+    sendFB.place(relx= 0.5, rely = 0.8, anchor = CENTER, relwidth = 0.5, relheight = 0.125)
+
     root.bind("<Return>", displayResults)
-    root.after(60000, lambda: close(0))
 
 if __name__ == "__main__":  
     main()
-    
-    
-    """ fig = plt.figure()
-    # Adding a subplot
-    ax = fig.add_subplot(1,1,1)
-    # Title
-    ax.set_title("Cursor Velocity (px/s) vs Trial")
-    # Y axis label
-    ax.set_ylabel("Cursor Velocity")
-    # X axis label
-    ax.set_xlabel("Trial #")
-    # Set y bounds to 0-1100
-    ax.set_ylim([0, 2000])
-    ax.set_xticks(sessionVelocitiesX)
-    ax.plot(sessionVelocitiesX, sessionVelocitiesY, color = "red")
-    plt.show() """
